@@ -1,0 +1,6 @@
+# Task 07 — Dashboard, audit, AI, demo data
+Dashboard (`dashboard`): cards with counts (runs running/completed/failed, pending approvals, risky invoices, escalated tickets), average processing time, a Recharts bar chart of runs per day, "my tasks" list (pending approvals for my role). Plain SQL/Prisma aggregates only.
+Audit (`audit`): paginated, filterable table (actor, action, entity, date). Read-only.
+AI (`src/server/ai/`): `client.ts` (openai SDK, baseURL/model/key from env, 15 s timeout, 1 retry), `schemas.ts` (Zod), `tasks.ts` with: `extractInvoice(text)`, `triageTicket(text)`, `draftReply(ticket)`, `summarizeEscalation(ticket)`. Each has a non-AI fallback and every call writes an audit entry with actorType `ai`. Env flag `AI_ENABLED=false` must keep the whole app working.
+Seed (`prisma/seed.ts` + `scripts/gen_data.py`): synthetic only. ~15 suppliers, 60 invoices incl. 6-8 planted anomalies (duplicate, outlier, changed bank, unknown supplier, PO mismatch, bad dates), 80 bank transactions, 10 POs, 40 customers, 50 tickets incl. 5 to escalate, 3 announcements, rule sets, workflow templates. Fixed random seed so the demo is reproducible.
+Done when: dashboard loads fast with seed data; `AI_ENABLED=false` still passes the demo scenario; `npm run seed` is repeatable (idempotent reset).

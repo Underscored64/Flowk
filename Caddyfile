@@ -1,0 +1,8 @@
+# DOMAIN=":80" -> plain HTTP on the server IP (for first tests).
+# DOMAIN="app.example.com" -> automatic HTTPS (DNS A record must point to the VM).
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy web:3000 {
+		flush_interval -1
+	}
+}

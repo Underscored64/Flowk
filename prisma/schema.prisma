@@ -1,0 +1,305 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  manager
+  agent
+}
+
+enum RunStatus {
+  pending
+  running
+  waiting_approval
+  completed
+  failed
+  cancelled
+}
+
+enum StepStatus {
+  pending
+  running
+  waiting
+  done
+  failed
+  skipped
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+  expired
+}
+
+// Money is ALWAYS integer cents. Never floats.
+
+model Organization {
+  id   String @id @default(cuid())
+  name String
+}
+
+model User {
+  id           String   @id @default(cuid())
+  orgId        String
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(agent)
+  domain       String? // "finance" | "support" | null
+  createdAt    DateTime @default(now())
+
+  @@index([orgId])
+}
+
+model WorkflowTemplate {
+  id         String        @id @default(cuid())
+  orgId      String
+  key        String // e.g. "invoice_processing"
+  name       String
+  domain     String // finance | support | procurement | sales | hr
+  version    Int           @default(1)
+  definition Json // steps, see docs/tasks/02
+  active     Boolean       @default(true)
+  runs       WorkflowRun[]
+
+  @@unique([orgId, key, version])
+}
+
+model WorkflowRun {
+  id              String           @id @default(cuid())
+  orgId           String
+  templateId      String
+  template        WorkflowTemplate @relation(fields: [templateId], references: [id])
+  templateVersion Int
+  status          RunStatus        @default(pending)
+  subjectType     String // "invoice" | "ticket" | ...
+  subjectId       String
+  context         Json             @default("{}")
+  currentStepId   String?
+  startedBy       String?
+  startedAt       DateTime         @default(now())
+  finishedAt      DateTime?
+  steps           StepRun[]
+  approvals       Approval[]
+
+  @@index([orgId, status])
+  @@index([subjectType, subjectId])
+}
+
+model StepRun {
+  id         String      @id @default(cuid())
+  runId      String
+  run        WorkflowRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stepId     String
+  type       String
+  status     StepStatus  @default(pending)
+  attempt    Int         @default(1)
+  input      Json?
+  output     Json?
+  error      String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  @@unique([runId, stepId, attempt])
+}
+
+model Approval {
+  id           String         @id @default(cuid())
+  orgId        String
+  runId        String
+  run          WorkflowRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stepId       String
+  assigneeRole Role
+  status       ApprovalStatus @default(pending)
+  decidedBy    String?
+  decidedAt    DateTime?
+  comment      String?
+  dueAt        DateTime?
+  createdAt    DateTime       @default(now())
+
+  @@index([orgId, status])
+}
+
+model RuleSet {
+  id         String @id @default(cuid())
+  orgId      String
+  key        String // e.g. "invoice_anomalies"
+  rules      Json // [{ id, label, logic (json-logic), weight, severity }]
+  thresholds Json   @default("{\"medium\":30,\"high\":70}")
+
+  @@unique([orgId, key])
+}
+
+model Supplier {
+  id              String          @id @default(cuid())
+  orgId           String
+  name            String
+  status          String          @default("verified") // verified | unverified | blocked
+  bankLast4       String?
+  bankChangedAt   DateTime?
+  avgInvoiceCents Int             @default(0)
+  invoices        Invoice[]
+  purchaseOrders  PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id          String    @id @default(cuid())
+  orgId       String
+  supplierId  String
+  supplier    Supplier  @relation(fields: [supplierId], references: [id])
+  reference   String
+  amountCents Int
+  status      String    @default("open")
+  expectedAt  DateTime?
+  invoices    Invoice[]
+}
+
+model Invoice {
+  id            String         @id @default(cuid())
+  orgId         String
+  supplierId    String
+  supplier      Supplier       @relation(fields: [supplierId], references: [id])
+  poId          String?
+  po            PurchaseOrder? @relation(fields: [poId], references: [id])
+  number        String
+  amountCents   Int
+  currency      String         @default("EUR")
+  issueDate     DateTime
+  dueDate       DateTime
+  rawText       String?
+  status        String         @default("received") // received | in_review | approved | blocked | paid
+  paymentStatus String         @default("unpaid") // unpaid | scheduled | paid
+  riskScore     Int?
+  flags         Json?
+  createdAt     DateTime       @default(now())
+
+  @@index([orgId, status])
+  @@index([supplierId, number])
+}
+
+model BankTransaction {
+  id               String   @id @default(cuid())
+  orgId            String
+  date             DateTime
+  amountCents      Int
+  label            String
+  reference        String?
+  matchStatus      String   @default("unmatched") // matched | partial | unmatched
+  matchedInvoiceId String?
+
+  @@index([orgId, matchStatus])
+}
+
+model Customer {
+  id      String   @id @default(cuid())
+  orgId   String
+  name    String
+  email   String
+  tier    String   @default("standard") // standard | vip
+  tickets Ticket[]
+}
+
+model Ticket {
+  id         String    @id @default(cuid())
+  orgId      String
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  channel    String    @default("web")
+  subject    String
+  body       String
+  category   String?
+  priority   String    @default("normal") // low | normal | high | critical
+  status     String    @default("open") // open | investigating | escalated | resolved
+  slaDueAt   DateTime?
+  assigneeId String?
+  escalated  Boolean   @default(false)
+  resolution String?
+  createdAt  DateTime  @default(now())
+
+  @@index([orgId, status])
+}
+
+model Announcement {
+  id         String             @id @default(cuid())
+  orgId      String
+  authorId   String
+  title      String
+  body       String // markdown, sanitized on render
+  audience   String             @default("all") // all | admin | manager | agent
+  importance String             @default("info") // info | important | urgent
+  pinned     Boolean            @default(false)
+  publishAt  DateTime           @default(now())
+  expiresAt  DateTime?
+  createdAt  DateTime           @default(now())
+  reads      AnnouncementRead[]
+
+  @@index([orgId, publishAt])
+}
+
+model AnnouncementRead {
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  readAt         DateTime     @default(now())
+
+  @@id([announcementId, userId])
+}
+
+model Meeting {
+  id           String               @id @default(cuid())
+  orgId        String
+  title        String
+  roomSlug     String               @unique // random, unguessable
+  scheduledAt  DateTime?
+  createdBy    String
+  linkedType   String? // "ticket" | "run"
+  linkedId     String?
+  status       String               @default("scheduled") // scheduled | live | ended
+  createdAt    DateTime             @default(now())
+  participants MeetingParticipant[]
+}
+
+model MeetingParticipant {
+  meetingId String
+  meeting   Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId    String
+
+  @@id([meetingId, userId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  orgId     String
+  userId    String
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+// Append-only. No update/delete routes may exist for this table.
+model AuditLog {
+  id         String   @id @default(cuid())
+  orgId      String
+  actorType  String // user | system | ai
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  data       Json?
+  createdAt  DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([entityType, entityId])
+}
