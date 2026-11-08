@@ -48,12 +48,14 @@ export async function getSessionFromRequest(
 
 /** Build the set-cookie header value. */
 export function sessionCookieHeader(token: string): string {
-  const isProd = process.env.NODE_ENV === "production";
-  const extra = isProd ? "; Secure" : "";
+  const isSecure = process.env.APP_URL?.startsWith("https://") ?? false;
+  const extra = isSecure ? "; Secure" : "";
   return `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${8 * 3600}${extra}`;
 }
 
 /** Build the clear-cookie header value. */
 export function clearCookieHeader(): string {
-  return `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
+  const isSecure = process.env.APP_URL?.startsWith("https://") ?? false;
+  const extra = isSecure ? "; Secure" : "";
+  return `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${extra}`;
 }
