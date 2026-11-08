@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     name: user.name,
   });
 
-  const res = NextResponse.redirect(new URL("/dashboard", req.url));
+  const res = NextResponse.json({ ok: true });
   res.headers.set("set-cookie", sessionCookieHeader(token));
   return res;
 }

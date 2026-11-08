@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
      });
   }
 
-  const res = NextResponse.redirect(new URL("/login", req.url));
+  const res = NextResponse.redirect(new URL("/login", process.env.APP_URL ?? req.url));
   res.headers.set("set-cookie", clearCookieHeader());
   return res;
 }

@@ -25,7 +25,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      if (res.redirected && res.url.includes('/dashboard')) {
+      if (res.ok) {
         router.push('/dashboard');
         router.refresh();
         return;
