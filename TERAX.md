@@ -5,7 +5,8 @@ Web platform that automates multi-step enterprise workflows (rule-based) with hu
 Two deep verticals: **Finance** (invoices -> anomaly rules -> approval -> reconciliation -> payment reminders) and **Support** (tickets -> triage -> investigation -> action -> escalation).
 Plus a communication layer: **announcements** (admin only) and **video meetings** (Jitsi as a Service iframe).
 Principle: **AI proposes, rules decide, a human validates.** The LLM never approves a payment and never triggers an action.
-Hackathon deadline: Nov 8, 2026, 23:00 GMT. Code freeze Nov 8, 18:00 GMT. Prefer simple and working over clever.
+Hackathon deadline: Nov 8, 2026, 23:00 GMT. Code freeze Nov 8, 18:00 GMT. Prefer simple and working over clever.Product name: **Flowk** (always written like this). 
+Use it in the page title (metadata), the login page, the sidebar/header, and the README. No logo yet: use the text "Flowk" in bold as a placeholder.
 
 ## Stack (do not change without asking)
 - Next.js 15 (App Router) + React 19 + TypeScript **strict** + Tailwind + shadcn/ui
